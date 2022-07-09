@@ -63,15 +63,14 @@ impl Parser {
                     let current_target_name = &current_target.name;
 
                     targets.insert(current_target_name.to_string(), current_target.clone());
-
-                    if self.default_target.is_none() {
-                        self.default_target = Some(current_target_name.to_string())
-                    }
-
-                    self.current_target = None;
                 }
 
                 let target = self.handle_target(&line)?;
+
+                if self.default_target.is_none() {
+                    self.default_target = Some(target.name.to_string())
+                }
+
                 self.current_target = Some(target);
                 self.is_target = true;
 
