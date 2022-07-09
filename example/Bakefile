@@ -1,0 +1,40 @@
+PROJECT = bake
+
+CC = gcc -std=gnu99
+CFLAGS = -Werror -Wall -Wextra -pedantic -g
+OBJS = action.o bake.o config.o main.o parser.o read.o target.o util.o variable.o
+LIBS = -lcurl
+SRCDIR = src
+
+$(PROJECT): $(OBJS)
+	$(CC) $(CFLAGS) -o $(PROJECT) $(OBJS) $(LIBS)
+
+action.o: $(SRCDIR)/action.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/action.c
+
+bake.o: $(SRCDIR)/bake.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/bake.c
+
+config.o: $(SRCDIR)/config.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/config.c
+
+main.o: $(SRCDIR)/main.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/main.c
+
+parser.o: $(SRCDIR)/parser.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/parser.c
+
+read.o: $(SRCDIR)/read.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/read.c
+
+target.o: $(SRCDIR)/target.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/target.c
+
+util.o: $(SRCDIR)/util.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/util.c
+
+variable.o: $(SRCDIR)/variable.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/variable.c
+
+clean:
+	rm -f $(PROJECT) *.o
