@@ -1,7 +1,7 @@
 use std::{env, fmt};
 use std::{io::Error, process::Command};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Action {
     pub command: String,
     pub modifier: Option<char>,

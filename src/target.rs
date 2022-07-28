@@ -4,14 +4,14 @@ use curl::easy::Easy;
 
 use crate::{action::Action, error::BakeError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Target {
     pub name: String,
     pub dependencies: Option<Vec<Dependency>>,
     pub actions: Vec<Action>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Dependency {
     File(String),
     Url(String),

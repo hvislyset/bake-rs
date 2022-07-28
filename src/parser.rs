@@ -12,8 +12,6 @@ use crate::variable::Variable;
 const RESERVED_IDENTIFIERS: &[&str; 4] = &["PID", "PPID", "PWD", "RAND"];
 
 pub struct Parser {
-    variables: HashMap<String, String>,
-    current_target: Option<Target>,
     default_target: Option<String>,
     is_target: bool,
 }
@@ -28,8 +26,6 @@ pub struct ParserResult {
 impl Parser {
     pub fn new(default_target: Option<String>) -> Self {
         Self {
-            variables: HashMap::new(),
-            current_target: None,
             default_target,
             is_target: false,
         }
@@ -42,13 +38,16 @@ impl Parser {
         stdout: bool,
         silent: bool,
     ) -> Result<ParserResult, BakeError> {
+        let mut current_target: Option<Target> = None;
+        let mut variables: HashMap<String, String> = HashMap::new();
         let mut targets: HashMap<String, Target> = HashMap::new();
 
         for line in lines {
             if line.contains('=') || line.contains(":=") {
-                let variable = self.handle_variable(&self.handle_variable_expansion(&line)?)?;
+                let variable =
+                    self.handle_variable(&self.handle_variable_expansion(&line, &variables)?)?;
 
-                self.variables.insert(variable.key, variable.value);
+                variables.insert(variable.key, variable.value);
 
                 continue;
             }
@@ -57,21 +56,20 @@ impl Parser {
                 if self.is_target {
                     self.is_target = false;
 
-                    let current_target = self.current_target.as_ref().ok_or_else(|| {
+                    let current_target = current_target.ok_or_else(|| {
                         BakeError::Parser("Couldn't retrieve current target".to_string())
                     })?;
-                    let current_target_name = &current_target.name;
 
-                    targets.insert(current_target_name.to_string(), current_target.clone());
+                    targets.insert(current_target.name.to_string(), current_target);
                 }
 
-                let target = self.handle_target(&line)?;
+                let target = self.handle_target(&line, &variables)?;
 
                 if self.default_target.is_none() {
                     self.default_target = Some(target.name.to_string())
                 }
 
-                self.current_target = Some(target);
+                current_target = Some(target);
                 self.is_target = true;
 
                 continue;
@@ -85,13 +83,13 @@ impl Parser {
                 }
 
                 let act = self.handle_action(
-                    &self.handle_variable_expansion(&line)?,
+                    &self.handle_variable_expansion(&line, &variables)?,
                     ignore,
                     stdout,
                     silent,
                 )?;
 
-                if let Some(ref mut current_target) = self.current_target {
+                if let Some(ref mut current_target) = current_target {
                     current_target.actions.push(act);
                 }
 
@@ -99,13 +97,13 @@ impl Parser {
             }
         }
 
-        if let Some(ref current_target) = self.current_target {
-            targets.insert(current_target.name.to_string(), current_target.clone());
+        if let Some(current_target) = current_target {
+            targets.insert(current_target.name.to_string(), current_target);
         }
 
         Ok(ParserResult::new(
             targets,
-            self.variables.clone(),
+            variables,
             self.default_target
                 .as_ref()
                 .unwrap_or(&"".to_string())
@@ -113,7 +111,11 @@ impl Parser {
         ))
     }
 
-    fn handle_variable_expansion(&self, target: &str) -> Result<String, BakeError> {
+    fn handle_variable_expansion(
+        &self,
+        target: &str,
+        variable: &HashMap<String, String>,
+    ) -> Result<String, BakeError> {
         let re =
             Regex::new(r"\$\((\s*[a-zA-Z]*\s*)\)*").expect("Regular expression failed to compile");
 
@@ -121,8 +123,10 @@ impl Parser {
             let mut new_line = target.to_string();
 
             for capture in re.captures_iter(target) {
-                new_line =
-                    new_line.replace(&capture[0], &self.handle_variable_lookup(&capture[1])?);
+                new_line = new_line.replace(
+                    &capture[0],
+                    &self.handle_variable_lookup(&capture[1], variable)?,
+                );
             }
 
             return Ok(new_line);
@@ -131,9 +135,13 @@ impl Parser {
         Ok(target.to_string())
     }
 
-    fn handle_variable_lookup(&self, key: &str) -> Result<String, BakeError> {
+    fn handle_variable_lookup(
+        &self,
+        key: &str,
+        variables: &HashMap<String, String>,
+    ) -> Result<String, BakeError> {
         // Check to see if the variable is user defined
-        if let Some(value) = self.variables.get(key) {
+        if let Some(value) = variables.get(key) {
             return Ok(value.to_string());
         }
 
@@ -178,13 +186,21 @@ impl Parser {
         ))
     }
 
-    fn handle_target(&self, line: &str) -> Result<Target, BakeError> {
+    fn handle_target(
+        &self,
+        line: &str,
+        variables: &HashMap<String, String>,
+    ) -> Result<Target, BakeError> {
         let (target, dependencies) = line.split_once(':').ok_or_else(|| {
             BakeError::Parser("Error delimiting target definition line".to_string())
         })?;
 
-        let target_name = self.handle_variable_expansion(target)?.trim().to_string();
-        let dependencies = self.handle_dependencies(&self.handle_variable_expansion(dependencies)?);
+        let target_name = self
+            .handle_variable_expansion(target, variables)?
+            .trim()
+            .to_string();
+        let dependencies =
+            self.handle_dependencies(&self.handle_variable_expansion(dependencies, variables)?);
 
         Ok(Target::new(target_name, dependencies, Vec::new()))
     }
